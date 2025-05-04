@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import axios from "axios";
-import { FaVolumeUp, FaCopy, FaMoon, FaSun } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
+import { showSuccess, showError } from "../helpers/ToastHelper";
 
-// Predefined languages
 const languages = [
   { code: "en", name: "English" },
   { code: "hi", name: "Hindi" },
@@ -19,209 +19,133 @@ const languages = [
   { code: "it", name: "Italian" },
   { code: "tr", name: "Turkish" },
   { code: "bn", name: "Bengali" },
-  { code: "ms", name: "Malay" }
+  { code: "ms", name: "Malay" },
 ];
 
-function GenerateCaption() {
-  const [image, setImage] = useState(null);
-  const [caption, setCaption] = useState("");
-  const [showCaption, setShowCaption] = useState(false);
-  const [userId, setUserId] = useState(null);
-  const [settings, setSettings] = useState(null);
-  const [darkMode, setDarkMode] = useState(true);
-  const [selectedLang, setSelectedLang] = useState("");
-  const token = localStorage.getItem("icg_authToken");
+const Register = () => {
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        const [meRes, settingsRes] = await Promise.all([
-          axios.get("http://localhost:5000/me", {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          axios.get("http://localhost:5000/getsettings", {
-            headers: { Authorization: `Bearer ${token}` }
-          })
-        ]);
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [preferredLanguage, setPreferredLanguage] = useState("en");
+  const [errorMsg, setErrorMsg] = useState("");
 
-        setUserId(meRes.data.id);
-        setSettings(settingsRes.data);
-      } catch (err) {
-        console.error("Initial fetch error:", err);
-        alert("Error loading user/settings");
-      }
-    };
-
-    if (token) fetchInitialData();
-  }, [token]);
-
-  const handleGenerate = async () => {
-    if (!image || !settings || !userId)
-      return alert("Please upload image and wait for settings");
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setErrorMsg("");
 
     try {
-      const formData = new FormData();
-      formData.append("image", image);
-      formData.append("user_id", userId);
-      formData.append("preferredLanguage", settings.preferredLanguage);
-      formData.append("automateSpeech", settings.automateSpeech);
-      formData.append("speechVoice", settings.speechVoice);
+      const response = await axios.post("http://localhost:5000/register", {
+        username,
+        email,
+        password,
+        preferred_language: preferredLanguage,
+      });
 
-      const genRes = await axios.post(
-        "http://localhost:5000/generate_caption",
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data"
-          }
-        }
-      );
-
-      let generated = genRes.data.caption;
-
-      // Translate if auto-enabled
-      if (settings.translateCaptions) {
-        const transRes = await axios.post(
-          "http://localhost:5000/translate",
-          {
-            caption: generated,
-            lang: settings.preferredLanguage
-          },
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
-        );
-        generated = transRes.data.translated_caption || generated;
+      if (response.status === 201) {
+        showSuccess(response.data.message || "Registration successful!");
+        navigate("/login");
       }
-
-      setShowCaption(false);
-      setTimeout(() => {
-        setCaption(generated);
-        setShowCaption(true);
-      }, 100);
-
-      if (settings.automateSpeech) {
-        setTimeout(() => {
-          handleSpeak(generated);
-        }, 500);
+    } catch (error) {
+      if (error.response && error.response.data) {
+        setErrorMsg(error.response.data.error);
+        showError(error.response.data.error);
+      } else {
+        setErrorMsg("An unexpected error occurred.");
+        showError("An unexpected error occurred. Please try again.");
       }
-    } catch (err) {
-      console.error("Caption generation failed:", err);
-      alert("Failed to generate caption");
     }
-  };
-
-  const handleSpeak = async (text) => {
-    try {
-      await axios.post(
-        "http://localhost:5000/speak_caption",
-        { caption: text },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-    } catch (err) {
-      console.error("Speak API error:", err);
-    }
-  };
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(caption);
-    alert("Caption copied!");
-  };
-
-  const handleManualTranslate = async () => {
-    if (!selectedLang || !caption) return;
-    try {
-      const res = await axios.post(
-        "http://localhost:5000/translate",
-        { caption, lang: selectedLang },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const translated = res.data.translated_caption || caption;
-      setShowCaption(false);
-      setTimeout(() => {
-        setCaption(translated);
-        setShowCaption(true);
-      }, 100);
-    } catch (err) {
-      console.error("Manual translation failed", err);
-      alert("Translation failed");
-    }
-  };
-
-  const toggleTheme = () => {
-    setDarkMode(!darkMode);
   };
 
   return (
-    <div
-      className={`${
-        darkMode ? "bg-gray-900 text-white" : "bg-white text-gray-900"
-      } min-h-screen transition-all`}
-    >
-      <div className="max-w-xl mx-auto p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Image Caption Generator</h1>
-          <button onClick={toggleTheme}>
-            {darkMode ? <FaSun /> : <FaMoon />}
-          </button>
-        </div>
+    <div className="w-full bg-white flex items-center justify-center px-4">
+      <div className="w-full max-w-md bg-white p-10 rounded-xl border border-slate-200 shadow-xl transition-all">
+        <h2 className="text-3xl font-bold text-slate-800 mb-6 text-center">
+          Create Account
+        </h2>
 
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => setImage(e.target.files[0])}
-          className="mb-4 w-full file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"
-        />
-
-        <button
-          onClick={handleGenerate}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded"
-        >
-          Generate Caption
-        </button>
-
-        {showCaption && (
-          <div className="transition-all duration-500 ease-in-out opacity-100 scale-100 mt-6 p-4 bg-gray-800 text-white rounded-lg relative shadow-md">
-            <p className="text-lg font-medium mb-3">{caption}</p>
-            <div className="absolute top-2 right-2 flex space-x-2">
-              <button onClick={() => handleSpeak(caption)} title="Speak">
-                <FaVolumeUp className="text-xl hover:text-blue-300" />
-              </button>
-              <button onClick={handleCopy} title="Copy">
-                <FaCopy className="text-xl hover:text-green-300" />
-              </button>
-            </div>
-
-            {/* Manual translation controls */}\
-            <div className="flex items-center mt-4 space-x-2">
-              <select
-                value={selectedLang}
-                onChange={(e) => setSelectedLang(e.target.value)}
-                className="text-black bg-white px-3 py-2 rounded"
-              >
-                <option value="">Select Language</option>
-                {languages.map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.name}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={handleManualTranslate}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
-              >
-                ➡️
-              </button>
-            </div>
+        <form className="space-y-6" onSubmit={handleSubmit}>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2 text-left">
+              Username
+            </label>
+            <input
+              type="text"
+              placeholder="your username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              className="w-full px-4 py-3 bg-white/70 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 placeholder-slate-400 transition"
+            />
           </div>
-        )}
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2 text-left">
+              Email Address
+            </label>
+            <input
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full px-4 py-3 bg-white/70 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 placeholder-slate-400 transition"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2 text-left">
+              Password
+            </label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full px-4 py-3 bg-white/70 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 placeholder-slate-400 transition"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2 text-left">
+              Preferred Language
+            </label>
+            <select
+              value={preferredLanguage}
+              onChange={(e) => setPreferredLanguage(e.target.value)}
+              className="w-full px-4 py-3 bg-white/70 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 transition"
+            >
+              {languages.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {errorMsg && (
+            <p className="text-sm text-red-600 text-center">{errorMsg}</p>
+          )}
+
+          <button
+            type="submit"
+            className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold transform transition duration-300 hover:bg-indigo-700 hover:shadow-md hover:scale-105"
+          >
+            Register
+          </button>
+        </form>
+
+        <p className="mt-6 text-sm text-center text-slate-600">
+          Already have an account?{" "}
+          <a href="/login" className="text-indigo-600 font-medium hover:underline">
+            Login here
+          </a>
+        </p>
       </div>
     </div>
   );
-}
+};
 
-export default GenerateCaption;
+export default Register;
